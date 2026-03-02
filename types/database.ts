@@ -1,20 +1,20 @@
 // ─── 테이블 Row 타입 ───
 
-export interface Store {
+export type Store = {
   id: string;
   name: string;
   created_at: string;
-}
+};
 
-export interface Category {
+export type Category = {
   id: string;
   store_id: string;
   name: string;
   display_order: number;
   created_at: string;
-}
+};
 
-export interface Menu {
+export type Menu = {
   id: string;
   store_id: string;
   category_id: string;
@@ -23,9 +23,9 @@ export interface Menu {
   image_url: string | null;
   display_order: number;
   created_at: string;
-}
+};
 
-export interface ChangeLog {
+export type ChangeLog = {
   id: string;
   store_id: string;
   action: string;
@@ -35,7 +35,7 @@ export interface ChangeLog {
   after_data: Record<string, unknown>;
   status: string;
   created_at: string;
-}
+};
 
 // ─── Supabase Database 타입 ───
 
@@ -44,37 +44,87 @@ export interface Database {
     Tables: {
       stores: {
         Row: Store;
-        Insert: Omit<Store, "id" | "created_at"> & {
+        Insert: {
           id?: string;
+          name: string;
           created_at?: string;
         };
-        Update: Partial<Omit<Store, "id">>;
+        Update: {
+          name?: string;
+          created_at?: string;
+        };
+        Relationships: [];
       };
       categories: {
         Row: Category;
-        Insert: Omit<Category, "id" | "created_at"> & {
+        Insert: {
           id?: string;
+          store_id: string;
+          name: string;
+          display_order: number;
           created_at?: string;
         };
-        Update: Partial<Omit<Category, "id">>;
+        Update: {
+          store_id?: string;
+          name?: string;
+          display_order?: number;
+          created_at?: string;
+        };
+        Relationships: [];
       };
       menus: {
         Row: Menu;
-        Insert: Omit<Menu, "id" | "created_at"> & {
+        Insert: {
           id?: string;
+          store_id: string;
+          category_id: string;
+          name: string;
+          price: number;
+          image_url?: string | null;
+          display_order: number;
           created_at?: string;
         };
-        Update: Partial<Omit<Menu, "id">>;
+        Update: {
+          store_id?: string;
+          category_id?: string;
+          name?: string;
+          price?: number;
+          image_url?: string | null;
+          display_order?: number;
+          created_at?: string;
+        };
+        Relationships: [];
       };
       change_logs: {
         Row: ChangeLog;
-        Insert: Omit<ChangeLog, "id" | "created_at"> & {
+        Insert: {
           id?: string;
+          store_id: string;
+          action: string;
+          target_type: string;
+          target_name: string;
+          before_data: Record<string, unknown>;
+          after_data: Record<string, unknown>;
+          status: string;
           created_at?: string;
         };
-        Update: Partial<Omit<ChangeLog, "id">>;
+        Update: {
+          store_id?: string;
+          action?: string;
+          target_type?: string;
+          target_name?: string;
+          before_data?: Record<string, unknown>;
+          after_data?: Record<string, unknown>;
+          status?: string;
+          created_at?: string;
+        };
+        Relationships: [];
       };
     };
+    Views: Record<string, never>;
+    Functions: Record<string, never>;
+    Enums: Record<string, never>;
+    CompositeTypes: Record<string, never>;
   };
 }
 
