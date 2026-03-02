@@ -12,11 +12,12 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // 부분 일치 검색
+  // 부분 일치 검색 (공백/괄호를 와일드카드로 변환하여 유연한 매칭)
+  const searchPattern = name.replace(/[\s()]+/g, "%");
   const { data: stores, error: storeError } = await supabase
     .from("stores")
     .select("id, name")
-    .ilike("name", `%${name}%`);
+    .ilike("name", `%${searchPattern}%`);
 
   if (storeError) {
     return NextResponse.json(
