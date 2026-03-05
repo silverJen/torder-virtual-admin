@@ -13,14 +13,40 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { menuName, imageUrl } = body;
+  const { menuName, chatId } = body;
 
-  if (!menuName || !imageUrl) {
+  if (!menuName || !chatId) {
     return NextResponse.json(
-      { success: false, error: "missing_param", message: "menuName과 imageUrl이 필요합니다." } satisfies ApiError,
+      { success: false, error: "missing_param", message: "menuName과 chatId가 필요합니다." } satisfies ApiError,
       { status: 400 }
     );
   }
+
+  // pending_images에서 해당 chatId의 최신 이미지 조회
+  const { data: pendingImages, error: pendingError } = await supabase
+    .from("pending_images")
+    .select("id, image_url")
+    .eq("chat_id", chatId)
+    .eq("applied", false)
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  if (pendingError) {
+    return NextResponse.json(
+      { success: false, error: "db_error", message: pendingError.message } satisfies ApiError,
+      { status: 500 }
+    );
+  }
+
+  if (!pendingImages || pendingImages.length === 0) {
+    return NextResponse.json(
+      { success: false, error: "no_pending_image", message: `chatId ${chatId}에 대한 대기 중인 이미지가 없습니다.` } satisfies ApiError,
+      { status: 404 }
+    );
+  }
+
+  const pendingImage = pendingImages[0];
+  const imageUrl = pendingImage.image_url;
 
   // 메뉴 찾기
   const { data: menus, error: menuError } = await supabase
@@ -57,6 +83,12 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+
+  // pending_images를 applied=true로 업데이트
+  await supabase
+    .from("pending_images")
+    .update({ applied: true })
+    .eq("id", pendingImage.id);
 
   // change_logs 기록
   const action = previousImageUrl ? "img_change" : "img_add";

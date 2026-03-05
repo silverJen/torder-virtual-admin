@@ -117,6 +117,18 @@ V2 POC의 핵심 질문 5가지에 답하는 것:
 | `display_order` | integer | 카테고리 내 표시 순서 | `1` |
 | `created_at` | timestamp | 생성일 | |
 
+#### `pending_images` — 대기 중인 이미지
+
+> 유저챗 웹훅으로 수신된 이미지를 임시 저장합니다. Task Node-6에서 chatId로 매칭하여 메뉴에 적용합니다.
+
+| 컬럼 | 타입 | 설명 | 예시 |
+|------|------|------|------|
+| `id` | uuid (PK) | 고유 식별자 | |
+| `chat_id` | text | 채널톡 채팅 ID | `abc123` |
+| `image_url` | text | Supabase Storage permanent URL | `https://...supabase.co/storage/...` |
+| `applied` | boolean | 메뉴에 적용 완료 여부 | `false` |
+| `created_at` | timestamp | 수신 시각 | |
+
 #### `change_logs` — 변경 이력
 
 > 챗봇이 API를 통해 변경한 모든 이력을 기록합니다. before/after를 비교할 수 있습니다.
@@ -143,6 +155,9 @@ stores (매장)
   │     └── menus (메뉴) — 1:N
   │
   └── change_logs (변경 이력) — 1:N
+
+pending_images (대기 이미지) — 독립 테이블
+  chat_id로 유저챗과 연결, applied로 적용 상태 관리
 ```
 
 ---
@@ -409,13 +424,16 @@ Content-Type: application/json
 
 ### 4.6 이미지 업로드/변경 (img_change, img_add)
 
-메뉴에 이미지를 추가하거나 기존 이미지를 교체하는 API입니다.
+메뉴에 이미지를 추가하거나 기존 이미지를 교체하는 API입니다. `chatId`로 `pending_images` 테이블에서 웹훅이 저장해둔 최신 이미지를 조회하여 적용합니다.
 
 **V2 POC 코드 (Node-F):**
 ```javascript
 case 'img_change':
 case 'img_add':
-  res = await axios.post('<BASE_URL>/menus/image', task.params, { headers });
+  res = await axios.post(BASE_URL + '/menus/image', {
+    menuName: task.params.menuName,
+    chatId: context.chatId
+  }, { headers });
 ```
 
 **요청:**
@@ -425,7 +443,7 @@ Content-Type: application/json
 
 {
   "menuName": "베이컨크림수제비",
-  "imageUrl": "https://example.com/bacon-cream-sujebi.jpg"
+  "chatId": "abc123"
 }
 ```
 
@@ -438,16 +456,66 @@ Content-Type: application/json
     "id": "menu-001",
     "name": "베이컨크림수제비",
     "previousImageUrl": null,
-    "newImageUrl": "https://example.com/bacon-cream-sujebi.jpg"
+    "newImageUrl": "https://...supabase.co/storage/v1/object/public/menu-images/..."
   }
 }
 ```
 
+**실패 응답 (404) — 대기 이미지 없음:**
+```json
+{
+  "success": false,
+  "error": "no_pending_image",
+  "message": "chatId abc123에 대한 대기 중인 이미지가 없습니다."
+}
+```
+
 **동작 규칙:**
-- `menuName`으로 메뉴를 찾습니다
-- 기존 이미지가 있으면 교체, 없으면 추가합니다
-- 이미지 규격 검증(800x600, 2MB)은 PoC에서는 생략합니다 (URL만 저장)
+- `chatId`로 `pending_images`에서 최신 미적용 이미지를 조회합니다
+- `menuName`으로 메뉴를 찾아 이미지 URL을 적용합니다
+- 적용 후 `pending_images.applied`를 `true`로 업데이트합니다
 - 변경 전/후 `image_url`을 `change_logs`에 기록합니다
+
+---
+
+### 4.6a 이미지 웹훅 수신 (유저챗 웹훅)
+
+채널톡 유저챗 웹훅으로 수신된 이미지를 다운로드하여 Supabase Storage에 저장하는 엔드포인트입니다. 채널톡이 자동으로 호출합니다.
+
+**요청 (채널톡 → 어드민 서버):**
+```
+POST /api/webhook/image
+Content-Type: application/json
+
+{
+  "entity": {
+    "chatId": "abc123",
+    "files": [
+      { "key": "pub-file/12345/photo.png", "name": "photo.png", "type": "image/png" }
+    ]
+  }
+}
+```
+
+**성공 응답 (200):**
+```json
+{
+  "success": true,
+  "message": "1/1개 이미지 처리 완료",
+  "chatId": "abc123",
+  "results": [
+    { "file": "photo.png", "status": "success", "imageUrl": "https://...supabase.co/storage/..." }
+  ]
+}
+```
+
+**동작 규칙:**
+1. 웹훅 페이로드에서 `entity.files[].key` 추출
+2. Channel.io File API로 signed URL 획득 (15분 TTL)
+3. signed URL에서 이미지 다운로드
+4. Supabase Storage(`menu-images` 버킷)에 업로드 → permanent URL 생성
+5. `pending_images` 테이블에 `{chat_id, image_url}` 저장
+6. 이미지가 아닌 파일은 스킵
 
 ---
 
@@ -653,6 +721,9 @@ cd torder-virtual-admin
 # .env.local
 NEXT_PUBLIC_SUPABASE_URL=https://xxxxx.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIs...
+SUPABASE_SERVICE_KEY=eyJhbGciOiJIUzI1NiIs...          # Storage 업로드용 service_role key
+CHANNELTALK_ACCESS_KEY=69a93d...                        # 채널톡 File API 인증
+CHANNELTALK_ACCESS_SECRET=afbdb3...                     # 채널톡 File API 인증
 ```
 
 ### 7.4 Vercel 배포
@@ -688,8 +759,8 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIs...
 | 타 지점 이미지 참조 | 매장 간 데이터 접근 필요 |
 | 상품명 변경 | V2 taskQueue type에 없음 |
 | 메뉴 노출 시간 설정 | V2 taskQueue type에 없음 |
-| 이미지 규격 검증 (2MB) | URL 기반 테스트이므로 생략 |
-| 실제 이미지 파일 업로드 | V3에서 검증 예정 |
+| 이미지 규격 검증 (2MB) | Supabase Storage 버킷에서 2MB 제한 설정으로 대체 |
+| ~~실제 이미지 파일 업로드~~ | ✅ 유저챗 웹훅 → 어드민 서버 직접 저장 방식으로 구현 완료 |
 
 ---
 
@@ -698,3 +769,4 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIs...
 | 날짜 | 내용 |
 |------|------|
 | 2026-03-02 | v1.0 초안 작성 |
+| 2026-03-05 | v1.1 이미지 웹훅 아키텍처 — pending_images 테이블 추가, /api/webhook/image 엔드포인트 추가, /api/menus/image를 chatId 방식으로 변경, 환경 변수 3개 추가 |

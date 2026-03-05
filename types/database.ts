@@ -37,6 +37,14 @@ export type ChangeLog = {
   created_at: string;
 };
 
+export type PendingImage = {
+  id: string;
+  chat_id: string;
+  image_url: string;
+  applied: boolean;
+  created_at: string;
+};
+
 // ─── Supabase Database 타입 ───
 
 export interface Database {
@@ -120,6 +128,23 @@ export interface Database {
         };
         Relationships: [];
       };
+      pending_images: {
+        Row: PendingImage;
+        Insert: {
+          id?: string;
+          chat_id: string;
+          image_url: string;
+          applied?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          chat_id?: string;
+          image_url?: string;
+          applied?: boolean;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
@@ -147,7 +172,7 @@ export interface CategoryReorderRequest {
 
 export interface ImageChangeRequest {
   menuName: string;
-  imageUrl: string;
+  chatId: string;
 }
 
 // ─── API 응답 타입 ───
