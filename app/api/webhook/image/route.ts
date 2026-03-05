@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
   }
 
   const chatId = entity.chatId as string | undefined;
-  const files = entity.files as Array<{ key: string; name: string; type: string }> | undefined;
+  const files = entity.files as Array<{ key: string; name: string; type: string; contentType?: string }> | undefined;
 
   if (!chatId || !files || files.length === 0) {
     // 이미지가 없는 메시지 웹훅 — 무시
@@ -36,8 +36,9 @@ export async function POST(request: NextRequest) {
   }
 
   // 이미지 파일만 필터링
+  // Channel.io file.type은 "image" (MIME이 아님), MIME은 contentType 필드
   const imageFiles = files.filter(f =>
-    f.type?.startsWith("image/") || /\.(png|jpg|jpeg|gif|webp)$/i.test(f.name)
+    f.type === "image" || f.contentType?.startsWith("image/")
   );
 
   if (imageFiles.length === 0) {
@@ -65,7 +66,7 @@ export async function POST(request: NextRequest) {
       }
 
       const signedUrlData = await signedUrlRes.json();
-      const signedUrl = signedUrlData.url || signedUrlData.signedUrl;
+      const signedUrl = signedUrlData.result || signedUrlData.url || signedUrlData.signedUrl;
 
       if (!signedUrl) {
         results.push({ file: file.name, status: "error", message: "signed URL이 응답에 없습니다." });
