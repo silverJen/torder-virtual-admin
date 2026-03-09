@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
   const searchPattern = name.replace(/[\s()]+/g, "%");
   const { data: stores, error: storeError } = await supabase
     .from("stores")
-    .select("id, name")
+    .select("id, name, is_editable")
     .ilike("name", `%${searchPattern}%`);
 
   if (storeError) {
@@ -76,7 +76,7 @@ export async function GET(request: NextRequest) {
   }
 
   const response: StoreSearchResponse = {
-    store: { id: store.id, name: store.name },
+    store: { id: store.id, name: store.name, is_editable: store.is_editable },
     menus: (menus ?? []).map((m) => ({
       id: m.id,
       name: m.name,

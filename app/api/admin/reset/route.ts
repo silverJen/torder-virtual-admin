@@ -2,9 +2,10 @@ import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import type { ResetResponse, ApiError } from "@/types/database";
 
-const SEED_STORE_NAME = "팔도휴게소(대전괴정점)";
+// ─── 팔도휴게소 (수정 가능) ───
+const SEED_STORE_1 = { name: "팔도휴게소(대전괴정점)", is_editable: true };
 
-const SEED_CATEGORIES = [
+const SEED_CATEGORIES_1 = [
   { name: "면류", display_order: 1 },
   { name: "돈까스류", display_order: 2 },
   { name: "안주휴게소1", display_order: 3 },
@@ -12,7 +13,7 @@ const SEED_CATEGORIES = [
   { name: "세트메뉴", display_order: 5 },
 ];
 
-const SEED_MENUS = [
+const SEED_MENUS_1 = [
   { name: "베이컨크림수제비", category: "면류", price: 8900, image_url: null, display_order: 1 },
   { name: "짬뽕", category: "면류", price: 7500, image_url: "https://placehold.co/400x300?text=짬뽕", display_order: 2 },
   { name: "칼국수", category: "면류", price: 7000, image_url: "https://placehold.co/400x300?text=칼국수", display_order: 3 },
@@ -25,6 +26,21 @@ const SEED_MENUS = [
   { name: "사이다", category: "음료", price: 2000, image_url: "https://placehold.co/400x300?text=사이다", display_order: 2 },
   { name: "돈까스+냉면세트", category: "세트메뉴", price: 13000, image_url: "https://placehold.co/400x300?text=돈까스+냉면세트", display_order: 1 },
   { name: "수제비+만두세트", category: "세트메뉴", price: 11000, image_url: null, display_order: 2 },
+];
+
+// ─── 채널치킨 (MOU 계약 — 수정 불가) ───
+const SEED_STORE_2 = { name: "채널치킨", is_editable: false };
+
+const SEED_CATEGORIES_2 = [
+  { name: "치킨", display_order: 1 },
+  { name: "사이드", display_order: 2 },
+];
+
+const SEED_MENUS_2 = [
+  { name: "후라이드치킨", category: "치킨", price: 18000, image_url: "https://placehold.co/400x300?text=후라이드치킨", display_order: 1 },
+  { name: "양념치킨", category: "치킨", price: 19000, image_url: "https://placehold.co/400x300?text=양념치킨", display_order: 2 },
+  { name: "치즈볼", category: "사이드", price: 5000, image_url: "https://placehold.co/400x300?text=치즈볼", display_order: 1 },
+  { name: "콜라", category: "사이드", price: 2000, image_url: "https://placehold.co/400x300?text=콜라", display_order: 2 },
 ];
 
 export async function POST() {
@@ -68,66 +84,78 @@ export async function POST() {
     );
   }
 
-  // 3. 매장 생성
-  const { data: store, error: storeError } = await supabase
-    .from("stores")
-    .insert({ name: SEED_STORE_NAME })
-    .select("id")
-    .single();
+  // 3. 매장 2개 생성 (팔도휴게소 + 채널치킨)
+  const stores = [SEED_STORE_1, SEED_STORE_2];
+  const allCategories = [SEED_CATEGORIES_1, SEED_CATEGORIES_2];
+  const allMenus = [SEED_MENUS_1, SEED_MENUS_2];
 
-  if (storeError || !store) {
-    return NextResponse.json(
-      { success: false, error: "db_error", message: "매장 생성에 실패했습니다." } satisfies ApiError,
-      { status: 500 }
-    );
-  }
+  let totalCategories = 0;
+  let totalMenus = 0;
 
-  // 4. 카테고리 생성
-  const categoryIdMap: Record<string, string> = {};
-
-  for (const cat of SEED_CATEGORIES) {
-    const { data: newCat, error: catError } = await supabase
-      .from("categories")
-      .insert({ store_id: store.id, name: cat.name, display_order: cat.display_order })
+  for (let i = 0; i < stores.length; i++) {
+    const { data: store, error: storeError } = await supabase
+      .from("stores")
+      .insert({ name: stores[i].name, is_editable: stores[i].is_editable })
       .select("id")
       .single();
 
-    if (catError || !newCat) {
+    if (storeError || !store) {
       return NextResponse.json(
-        { success: false, error: "db_error", message: `카테고리 생성 실패: ${cat.name}` } satisfies ApiError,
+        { success: false, error: "db_error", message: `매장 생성 실패: ${stores[i].name}` } satisfies ApiError,
         { status: 500 }
       );
     }
 
-    categoryIdMap[cat.name] = newCat.id;
-  }
+    // 카테고리 생성
+    const categoryIdMap: Record<string, string> = {};
 
-  // 5. 메뉴 생성
-  const menuInserts = SEED_MENUS.map((m) => ({
-    store_id: store.id,
-    category_id: categoryIdMap[m.category],
-    name: m.name,
-    price: m.price,
-    image_url: m.image_url,
-    display_order: m.display_order,
-  }));
+    for (const cat of allCategories[i]) {
+      const { data: newCat, error: catError } = await supabase
+        .from("categories")
+        .insert({ store_id: store.id, name: cat.name, display_order: cat.display_order })
+        .select("id")
+        .single();
 
-  const { error: menuError } = await supabase.from("menus").insert(menuInserts);
+      if (catError || !newCat) {
+        return NextResponse.json(
+          { success: false, error: "db_error", message: `카테고리 생성 실패: ${cat.name}` } satisfies ApiError,
+          { status: 500 }
+        );
+      }
 
-  if (menuError) {
-    return NextResponse.json(
-      { success: false, error: "db_error", message: `메뉴 생성 실패: ${menuError.message}` } satisfies ApiError,
-      { status: 500 }
-    );
+      categoryIdMap[cat.name] = newCat.id;
+    }
+
+    // 메뉴 생성
+    const menuInserts = allMenus[i].map((m) => ({
+      store_id: store.id,
+      category_id: categoryIdMap[m.category],
+      name: m.name,
+      price: m.price,
+      image_url: m.image_url,
+      display_order: m.display_order,
+    }));
+
+    const { error: menuError } = await supabase.from("menus").insert(menuInserts);
+
+    if (menuError) {
+      return NextResponse.json(
+        { success: false, error: "db_error", message: `메뉴 생성 실패: ${menuError.message}` } satisfies ApiError,
+        { status: 500 }
+      );
+    }
+
+    totalCategories += allCategories[i].length;
+    totalMenus += allMenus[i].length;
   }
 
   const response: ResetResponse = {
     success: true,
     message: "시드 데이터로 초기화했습니다.",
     summary: {
-      stores: 1,
-      categories: SEED_CATEGORIES.length,
-      menus: SEED_MENUS.length,
+      stores: stores.length,
+      categories: totalCategories,
+      menus: totalMenus,
       changeLogsCleared,
     },
   };

@@ -3,6 +3,7 @@
 export type Store = {
   id: string;
   name: string;
+  is_editable: boolean;
   created_at: string;
 };
 
@@ -55,10 +56,12 @@ export interface Database {
         Insert: {
           id?: string;
           name: string;
+          is_editable?: boolean;
           created_at?: string;
         };
         Update: {
           name?: string;
+          is_editable?: boolean;
           created_at?: string;
         };
         Relationships: [];
@@ -178,7 +181,7 @@ export interface ImageChangeRequest {
 // ─── API 응답 타입 ───
 
 export interface StoreSearchResponse {
-  store: Pick<Store, "id" | "name">;
+  store: Pick<Store, "id" | "name" | "is_editable">;
   menus: {
     id: string;
     name: string;
