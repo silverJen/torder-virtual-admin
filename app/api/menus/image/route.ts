@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
 
   if (!pendingImages || pendingImages.length === 0) {
     return NextResponse.json(
-      { success: false, error: "no_pending_image", message: `chatId ${chatId}에 대한 대기 중인 이미지가 없습니다.` } satisfies ApiError,
+      { success: false, error: "no_pending_image", message: pendingImageId ? `이미지를 찾을 수 없습니다: ${pendingImageId}` : `chatId ${chatId}에 대한 대기 중인 이미지가 없습니다.` } satisfies ApiError,
       { status: 404 }
     );
   }
