@@ -175,7 +175,31 @@ export interface CategoryReorderRequest {
 
 export interface ImageChangeRequest {
   menuName: string;
-  chatId: string;
+  chatId?: string;
+  pendingImageId?: string;
+}
+
+export interface BatchImageMapping {
+  menuName: string;
+  pendingImageId: string;
+}
+
+export interface BatchImageRequest {
+  mappings: BatchImageMapping[];
+}
+
+export interface BatchImageResponse {
+  success: true;
+  results: {
+    menuName: string;
+    success: boolean;
+    message: string;
+  }[];
+  summary: {
+    total: number;
+    succeeded: number;
+    failed: number;
+  };
 }
 
 // ─── API 응답 타입 ───

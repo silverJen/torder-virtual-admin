@@ -13,23 +13,29 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { menuName, chatId } = body;
+  const { menuName, chatId, pendingImageId } = body;
 
-  if (!menuName || !chatId) {
+  if (!menuName || (!chatId && !pendingImageId)) {
     return NextResponse.json(
-      { success: false, error: "missing_param", message: "menuName과 chatId가 필요합니다." } satisfies ApiError,
+      { success: false, error: "missing_param", message: "menuName 필수, chatId 또는 pendingImageId 중 하나 필요" } satisfies ApiError,
       { status: 400 }
     );
   }
 
-  // pending_images에서 해당 chatId의 최신 이미지 조회
-  const { data: pendingImages, error: pendingError } = await supabase
-    .from("pending_images")
-    .select("id, image_url")
-    .eq("chat_id", chatId)
-    .eq("applied", false)
-    .order("created_at", { ascending: false })
-    .limit(1);
+  // pending_images 조회: pendingImageId 직접 조회 또는 chatId 기반 최신 1장
+  let pendingQuery;
+  if (pendingImageId) {
+    // ID 직접 조회 — applied 체크 안 함 (동일 이미지 여러 메뉴 적용 지원)
+    pendingQuery = supabase.from("pending_images").select("id, image_url")
+      .eq("id", pendingImageId).limit(1);
+  } else {
+    // 기존 방식: chatId로 최신 미적용 1장
+    pendingQuery = supabase.from("pending_images").select("id, image_url")
+      .eq("chat_id", chatId!).eq("applied", false)
+      .order("created_at", { ascending: false }).limit(1);
+  }
+
+  const { data: pendingImages, error: pendingError } = await pendingQuery;
 
   if (pendingError) {
     return NextResponse.json(
